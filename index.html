@@ -2,55 +2,130 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>ragdoll.com</title>
 <style>
-:root{--bg:#0b1220;--panel:#0f1724;--muted:#98a2b3}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
-body{background:linear-gradient(180deg,#071029,#0b1220);color:#e6eef6;display:flex;flex-direction:column}
-header{padding:12px 16px;display:flex;gap:12px;align-items:center}
-h1{font-size:16px;margin:0}
-.controls{display:flex;gap:8px;align-items:center;margin-left:auto}
-button,select{background:var(--panel);border:1px solid rgba(255,255,255,0.04);color:inherit;padding:8px 10px;border-radius:8px;cursor:pointer}
-button:active{transform:translateY(1px)}
-label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
-#canvasWrap{flex:1;display:block;position:relative}
-canvas{display:block;width:100%;height:100%;background:linear-gradient(180deg,rgba(0,0,0,0.15),rgba(0,0,0,0.25));}
-.help{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,0.25);backdrop-filter:blur(4px);padding:8px;border-radius:8px;font-size:13px;color:var(--muted)}
-.slider{width:120px}
-.small{padding:6px 8px;font-size:13px}
+:root {
+  --bg:#0b1220;
+  --panel:#0f1724;
+  --muted:#98a2b3;
+}
+html, body {
+  height:100%;
+  margin:0;
+  font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;
+  overflow:hidden;
+}
+body {
+  background:linear-gradient(180deg,#071029,#0b1220);
+  color:#e6eef6;
+  display:flex;
+  flex-direction:column;
+}
+header {
+  padding:8px 10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+}
+h1 {font-size:15px;margin:0;}
+.controls {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-left:auto;
+  justify-content:flex-end;
+}
+button,select {
+  background:var(--panel);
+  border:1px solid rgba(255,255,255,0.04);
+  color:inherit;
+  padding:8px 10px;
+  border-radius:8px;
+  cursor:pointer;
+}
+button:active{transform:translateY(1px);}
+label {
+  font-size:13px;
+  color:var(--muted);
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+#canvasWrap {
+  flex:1;
+  display:block;
+  position:relative;
+}
+canvas {
+  display:block;
+  width:100%;
+  height:100%;
+  background:linear-gradient(180deg,rgba(0,0,0,0.15),rgba(0,0,0,0.25));
+  touch-action:none;
+}
+.help {
+  position:absolute;
+  left:8px;
+  bottom:8px;
+  background:rgba(0,0,0,0.25);
+  backdrop-filter:blur(4px);
+  padding:6px;
+  border-radius:8px;
+  font-size:12px;
+  color:var(--muted);
+}
+.slider {width:100px;}
+.small {padding:6px 8px;font-size:13px;}
 </style>
 </head>
 <body>
 <header>
-<h1>ragdoll.com</h1>
-<div class="controls">
-<button id="spawnR" title="Spawn a ragdoll">Spawn Ragdoll</button>
-<button id="spawnBox" title="Spawn some boxes">Spawn Boxes</button>
-<button id="clear" title="Clear everything">Reset</button>
-<label>Gravity <input id="grav" class="slider" type="range" min="0" max="2" step="0.01" value="0.98"></label>
-<label>Substeps <select id="substeps"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
-<button id="slow" class="small">Slow Motion</button>
-</div>
+  <h1>ragdoll.com</h1>
+  <div class="controls">
+    <button id="spawnR">Spawn Ragdoll</button>
+    <button id="spawnBox">Spawn Boxes</button>
+    <button id="clear">Reset</button>
+    <label>Gravity <input id="grav" class="slider" type="range" min="0" max="2" step="0.01" value="0.98"></label>
+    <label>Substeps 
+      <select id="substeps">
+        <option>1</option><option selected>2</option><option>3</option><option>4</option>
+      </select>
+    </label>
+    <button id="slow" class="small">Slow Motion</button>
+  </div>
 </header>
 
-<div id="canvasWrap"><canvas id="c"></canvas>
-<div class="help">Drag bodies to fling • Click canvas to spawn ragdoll at cursor</div>
+<div id="canvasWrap">
+  <canvas id="c"></canvas>
+  <div class="help">Touch or click to spawn • Drag ragdolls to fling</div>
 </div>
 
 <script>
 (function(){
-const canvas=document.getElementById('c');
-const ctx=canvas.getContext('2d');
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
 let W=innerWidth,H=innerHeight-72;
-function resize(){W=innerWidth;H=innerHeight-72;canvas.width=W*devicePixelRatio;canvas.height=H*devicePixelRatio;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+function resize(){
+  W=innerWidth;H=innerHeight-72;
+  canvas.width=W*devicePixelRatio;
+  canvas.height=H*devicePixelRatio;
+  canvas.style.width=W+'px';
+  canvas.style.height=H+'px';
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
 addEventListener('resize',resize);resize();
 
 const points=[],constraints=[];
 let gravity=0.98,substeps=2,slow=false;
 
 function Point(x,y,pinned=false){this.x=x;this.y=y;this.oldx=x;this.oldy=y;this.pinned=pinned;this.r=3;}
-Point.prototype.apply=function(){if(this.pinned)return;const vx=this.x-this.oldx,vy=this.y-this.oldy;this.oldx=this.x;this.oldy=this.y;this.x+=vx*0.995;this.y+=vy*0.995+gravity;}
+Point.prototype.apply=function(){
+  if(this.pinned)return;
+  const vx=this.x-this.oldx,vy=this.y-this.oldy;
+  this.oldx=this.x;this.oldy=this.y;
+  this.x+=vx*0.995;this.y+=vy*0.995+gravity;
+};
 
 function Constraint(a,b,rest,stiff=1){this.a=a;this.b=b;this.rest=rest||dist(a,b);this.stiff=stiff;}
 function dist(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.hypot(dx,dy);}
@@ -66,11 +141,11 @@ function satisfy(){
     if(!a.pinned){a.x-=ox*(im1/w);a.y-=oy*(im1/w);}
     if(!b.pinned){b.x+=ox*(im2/w);b.y+=oy*(im2/w);}
   }
-
-  // floor/walls
-  for(const p of points){if(p.y>H-3)p.y=H-3;if(p.x<3)p.x=3;if(p.x>W-3)p.x=W-3;}
-
-  // self-collision
+  for(const p of points){
+    if(p.y>H-3)p.y=H-3;
+    if(p.x<3)p.x=3;
+    if(p.x>W-3)p.x=W-3;
+  }
   for(let i=0;i<points.length;i++){
     const a=points[i];
     for(let j=i+1;j<points.length;j++){
@@ -86,29 +161,24 @@ function satisfy(){
   }
 }
 
-function step(){for(let k=0;k<substeps;k++){for(const p of points)p.apply();for(let j=0;j<8;j++)satisfy();}}
+function step(){
+  for(let k=0;k<substeps;k++){
+    for(const p of points)p.apply();
+    for(let j=0;j<8;j++)satisfy();
+  }
+}
 
 function draw(){
   ctx.clearRect(0,0,W,H);
-
-  // subtle grid
-  ctx.save(); 
-  ctx.globalAlpha=0.03;
-  ctx.strokeStyle='white';
+  ctx.save(); ctx.globalAlpha=0.03; ctx.strokeStyle='white';
   for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
   ctx.restore();
-
-  // constraints - thin white lines
-  ctx.lineWidth=1; 
-  ctx.strokeStyle='white';
+  ctx.lineWidth=1; ctx.strokeStyle='white';
   for(const c of constraints){ctx.beginPath();ctx.moveTo(c.a.x,c.a.y);ctx.lineTo(c.b.x,c.b.y);ctx.stroke();}
-
-  // points - small white circles
   for(const p of points){ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();}
 }
 
-// ragdoll creation
 function createRagdoll(x,y,scale=1){
   const sx=scale,sy=scale,p=[];
   p.push(new Point(x,y-40*sy)); // head
@@ -129,7 +199,7 @@ function createRagdoll(x,y,scale=1){
   p.push(new Point(x+10*sx,y+110*sy)); // footR
   const start=points.length;
   for(const q of p)points.push(q);
-  const idx=(i)=>points[start+i];
+  const idx=i=>points[start+i];
   const make=(a,b,r,stiff)=>constraints.push(new Constraint(idx(a),idx(b),r,stiff));
   make(0,1,16,1.5); make(1,2,18,1.5); make(2,3,30,1.5);
   make(2,4,22,1.5); make(2,5,22,1.5);
@@ -139,10 +209,9 @@ function createRagdoll(x,y,scale=1){
   make(10,12,36,1.5); make(12,14,36,1.5);
   make(11,13,36,1.5); make(13,15,36,1.5);
   make(4,5,36,1.5); make(10,11,22,1.5); make(1,10,54,1.0); make(1,11,54,1.0);
-  idx(0).r=6; // bigger head slightly
+  idx(0).r=6;
 }
 
-// spawn boxes
 function spawnBoxes(cx,cy,count=6){
   for(let i=0;i<count;i++){
     const x=cx+(Math.random()-0.5)*200,y=cy+(Math.random()-0.5)*120,s=12+Math.random()*28;
@@ -157,28 +226,46 @@ function spawnBoxes(cx,cy,count=6){
   }
 }
 
-// mouse
+// touch + mouse
 let mouse={x:0,y:0,down:false,grab:null};
-canvas.addEventListener('mousedown',e=>{
+function getPos(e){
   const r=canvas.getBoundingClientRect();
-  mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top; mouse.down=true;
+  const t=e.touches?e.touches[0]:e;
+  return {x:t.clientX-r.left,y:t.clientY-r.top};
+}
+function down(e){
+  const {x,y}=getPos(e);mouse.x=x;mouse.y=y;mouse.down=true;
   let best=null,bd=24;
-  for(const p of points){const d=Math.hypot(p.x-mouse.x,p.y-mouse.y);if(d<bd){best=p;bd=d;}}
-  if(best){mouse.grab=best;} else {createRagdoll(mouse.x,mouse.y,1);}
-});
-addEventListener('mousemove',e=>{ const r=canvas.getBoundingClientRect(); mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top; if(mouse.grab){mouse.grab.x=mouse.x; mouse.grab.y=mouse.y; mouse.grab.oldx=mouse.x; mouse.grab.oldy=mouse.y;}});
-addEventListener('mouseup',()=>{mouse.down=false; mouse.grab=null;});
+  for(const p of points){const d=Math.hypot(p.x-x,p.y-y);if(d<bd){best=p;bd=d;}}
+  if(best){mouse.grab=best;}
+  else{createRagdoll(x,y,1);}
+}
+function move(e){
+  if(!mouse.down)return;
+  const {x,y}=getPos(e);mouse.x=x;mouse.y=y;
+  if(mouse.grab){mouse.grab.x=x;mouse.grab.y=y;mouse.grab.oldx=x;mouse.grab.oldy=y;}
+}
+function up(){mouse.down=false;mouse.grab=null;}
+canvas.addEventListener('mousedown',down);
+canvas.addEventListener('mousemove',move);
+addEventListener('mouseup',up);
+canvas.addEventListener('touchstart',e=>{down(e);e.preventDefault();});
+canvas.addEventListener('touchmove',e=>{move(e);e.preventDefault();});
+canvas.addEventListener('touchend',e=>{up();e.preventDefault();});
 
 // UI
-document.getElementById('spawnR').addEventListener('click',()=>createRagdoll(mouse.x,mouse.y,1.2));
-document.getElementById('spawnBox').addEventListener('click',()=>spawnBoxes(mouse.x,mouse.y,8));
+document.getElementById('spawnR').addEventListener('click',()=>createRagdoll(mouse.x||W/2,mouse.y||H/2,1.2));
+document.getElementById('spawnBox').addEventListener('click',()=>spawnBoxes(mouse.x||W/2,mouse.y||H/2,8));
 document.getElementById('clear').addEventListener('click',()=>{points.length=0;constraints.length=0;});
 document.getElementById('grav').addEventListener('input',e=>gravity=parseFloat(e.target.value));
 document.getElementById('substeps').addEventListener('change',e=>substeps=parseInt(e.target.value));
-document.getElementById('slow').addEventListener('click',()=>{slow=!slow;document.getElementById('slow').textContent=slow?'Normal':'Slow Motion';});
+document.getElementById('slow').addEventListener('click',()=>{
+  slow=!slow;document.getElementById('slow').textContent=slow?'Normal':'Slow Motion';
+});
 
 // start
-createRagdoll(W/2,80,1.2); spawnBoxes(W/2,H/2,6);
+createRagdoll(W/2,80,1.2);
+spawnBoxes(W/2,H/2,6);
 
 let last=performance.now();
 function loop(now){
@@ -193,5 +280,3 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
-
-
