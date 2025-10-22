@@ -88,7 +88,55 @@ function detonateBombIndex(i){const bm=bombs[i];if(!bm||bm.state!=='armed')retur
 function detonateAllBombs(){for(let i=0;i<bombs.length;i++){if(bombs[i].state==='armed')detonateBombIndex(i);}}
 function applyExplosionImpulse(cx,cy,blastRadius,blastPower){for(const p of points){const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy);if(d<=blastRadius&&d>0.0001){const normX=dx/d,normY=dy/d,falloff=1-(d/blastRadius),force=blastPower*falloff;p.oldx-=normX*force;p.oldy-=normY*force;p.x+=normX*Math.min(6,force*0.3);p.y+=normY*Math.min(6,force*0.3);}}for(const c of constraints){const ax=c.a.x,ay=c.a.y,bx=c.b.x,by=c.b.y,dax=(ax+bx)/2-cx,day=(ay+by)/2-cy,dd=Math.hypot(dax,day);if(dd<blastRadius*0.6){c.stiff*=0.6;c.rest*=1+0.12*(1-dd/(blastRadius*0.6));}}}
 
-function standRagdoll(r){const baseY=Math.min(H-120,H-160+Math.random()*20);const x=r.points[0].x;const s=1;const target=[[x,baseY-40*s],[x,baseY-24*s],[x,baseY-6*s],[x,baseY+22*s],[x-18*s,baseY-6*s],[x+18*s,baseY-6*s],[x-30*s,baseY+8*s],[x+30*s,baseY+8*s],[x-36*s,baseY+28*s],[x+36*s,baseY+28*s],[x-10*s,baseY+44*s],[x+10*s,baseY+44*s],[x-10*s,baseY+80*s],[x+10*s,baseY+80*s],[x-10*s,baseY+110*s],[x+10*s,baseY+110*s]];for(let i=0;i<r.points.length;i++){const p=r.points[i],t=target[i],speed=(i<=3)?0.03:0.015;p.x+=(t[0]-p.x)*speed;p.y+=(t[1]-p.y)*speed;}if(Math.abs(r.points[3].y-(baseY+22*s))<0.5)r.standing=false;}
+function standRagdoll(r){
+  const s=1;
+  const p=r.points;
+  const baseY = H - 120;
+
+  // Feet anchors
+  const feetFriction = 0.85;
+  p[12].oldx = p[12].x + (p[12].oldx - p[12].x) * feetFriction;
+  p[12].oldy = p[12].y + (p[12].oldy - p[12].y) * feetFriction;
+  p[13].oldx = p[13].x + (p[13].oldx - p[13].x) * feetFriction;
+  p[13].oldy = p[13].y + (p[13].oldy - p[13].y) * feetFriction;
+
+  // Legs: pelvis->knees->feet
+  const legTargets = [
+    [p[3].x, baseY - 22*s],
+    [p[10].x, baseY + 40*s],
+    [p[11].x, baseY + 40*s],
+    [p[12].x, baseY + 80*s],
+    [p[13].x, baseY + 80*s]
+  ];
+  const legSpeeds = [0.05,0.035,0.035,0.02,0.02];
+  for(let i=0;i<legTargets.length;i++){
+    p[3+i].x += (legTargets[i][0]-p[3+i].x)*legSpeeds[i];
+    p[3+i].y += (legTargets[i][1]-p[3+i].y)*legSpeeds[i];
+  }
+
+  // Torso & head alignment
+  const torsoTargets = [
+    [p[0].x, legTargets[0][1]-62*s],
+    [p[1].x, legTargets[0][1]-38*s],
+    [p[2].x, legTargets[0][1]-12*s]
+  ];
+  const torsoSpeeds = [0.04,0.035,0.03];
+  for(let i=0;i<torsoTargets.length;i++){
+    p[i].x += (torsoTargets[i][0]-p[i].x)*torsoSpeeds[i];
+    p[i].y += (torsoTargets[i][1]-p[i].y)*torsoSpeeds[i];
+  }
+
+  // Arms slight adjustment for balance
+  p[4].x += (p[4].x - p[4].x)*0.02;
+  p[4].y += (p[2].y + 6*s - p[4].y)*0.02;
+  p[5].x += (p[5].x - p[5].x)*0.02;
+  p[5].y += (p[2].y + 6*s - p[5].y)*0.02;
+  p[6].y += (p[3].y + 8*s - p[6].y)*0.02;
+  p[7].y += (p[3].y + 8*s - p[7].y)*0.02;
+
+  // Stop standing if legs are roughly straight
+  if(Math.abs(p[3].y-(baseY-22*s))<0.5) r.standing=false;
+}
 
 let mouse={x:0,y:0,grab:null};
 canvas.addEventListener('mousedown',e=>{const r=canvas.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;
