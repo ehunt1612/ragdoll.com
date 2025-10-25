@@ -2,23 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>ragdoll.com — Human-like Stick Figure Ragdoll (with Bombs)</title>
 <style>
 :root{--bg:#0b1220;--panel:#0f1724;--accent:#6ee7b7;--muted:#98a2b3}
 html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
-body{background:linear-gradient(180deg,#071029,#0b1220);color:#e6eef6;display:flex;flex-direction:column}
-header{padding:12px 16px;display:flex;gap:12px;align-items:center}
-h1{font-size:16px;margin:0}
-.controls{display:flex;gap:8px;align-items:center;margin-left:auto}
-button,select{background:var(--panel);border:1px solid rgba(255,255,255,0.04);color:inherit;padding:8px 10px;border-radius:8px;cursor:pointer}
+body{background:linear-gradient(180deg,#071029,#0b1220);color:#e6eef6;display:flex;flex-direction:column;overflow:hidden;}
+header{padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;background:var(--panel);}
+h1{font-size:14px;margin:0;flex:1;min-width:160px;}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;}
+button,select,input[type=range]{background:var(--panel);border:1px solid rgba(255,255,255,0.05);color:inherit;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;}
 button:active{transform:translateY(1px)}
-label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
-#canvasWrap{flex:1;display:block;position:relative}
-canvas{display:block;width:100%;height:100%;background:linear-gradient(180deg,rgba(0,0,0,0.15),rgba(0,0,0,0.25));}
-.help{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,0.25);backdrop-filter:blur(4px);padding:8px;border-radius:8px;font-size:13px;color:var(--muted)}
-.slider{width:120px}
-.small{padding:6px 8px;font-size:13px}
+label{font-size:12px;color:var(--muted);display:flex;gap:4px;align-items:center}
+#canvasWrap{flex:1;position:relative;overflow:hidden;}
+canvas{display:block;width:100%;height:100%;background:linear-gradient(180deg,rgba(0,0,0,0.15),rgba(0,0,0,0.25));touch-action:none;}
+.help{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,0.25);backdrop-filter:blur(4px);padding:6px 8px;border-radius:8px;font-size:12px;color:var(--muted);max-width:90%;line-height:1.3;}
+.slider{width:100px}
+.small{padding:6px 8px;font-size:12px}
 kbd{background:#0b1220;border:1px solid rgba(255,255,255,0.04);padding:2px 6px;border-radius:4px;font-family:inherit}
 </style>
 </head>
@@ -34,29 +34,39 @@ kbd{background:#0b1220;border:1px solid rgba(255,255,255,0.04);padding:2px 6px;b
 <button id="slow" class="small">Slow Motion</button>
 <button id="pause" class="small">Pause</button>
 <label>Gravity <input id="grav" class="slider" type="range" min="0" max="2" step="0.01" value="0.98"></label>
-<label>Substeps <select id="substeps"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+<label>Substeps 
+<select id="substeps">
+<option>1</option><option selected>2</option><option>3</option><option>4</option>
+</select>
+</label>
 </div>
 </header>
 
 <div id="canvasWrap"><canvas id="c"></canvas>
-<div class="help" id="help">Drag to move • Click to spawn a stick ragdoll • Spawn Bomb then click <kbd>Detonate Bombs</kbd> or click a bomb to detonate it</div>
+<div class="help" id="help">Drag or touch to move • Tap to spawn a stick ragdoll • Tap a bomb to detonate it</div>
 </div>
 
 <script>
 (function(){
 const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
-let W=innerWidth,H=innerHeight-72;
-function resize(){W=innerWidth;H=innerHeight-72;canvas.width=W*devicePixelRatio;canvas.height=H*devicePixelRatio;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
-addEventListener('resize',resize);resize();
+let W=innerWidth,H=innerHeight-document.querySelector('header').offsetHeight;
+function resize(){
+  W=innerWidth;H=innerHeight-document.querySelector('header').offsetHeight;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=W*dpr;
+  canvas.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',resize);
+resize();
 
-const points=[],constraints=[],ragdolls=[],boxes=[];
-const bombs=[];
+// Main physics + ragdoll code (same as before)
+const points=[],constraints=[],ragdolls=[],boxes=[],bombs=[];
 let gravity=0.98,substeps=2,slow=false,paused=false;
-
 let spawnMode='ragdoll';
 const helpDiv=document.getElementById('help');
-function updateHelp(){helpDiv.textContent=`Mode: ${spawnMode.toUpperCase()} • Drag to move • Click to spawn at cursor • Click a bomb to detonate it`; }
+function updateHelp(){helpDiv.textContent=`Mode: ${spawnMode.toUpperCase()} • Drag or touch to move • Tap to spawn • Tap bomb to detonate`; }
 updateHelp();
 
 function Point(x,y,pinned=false){this.x=x;this.y=y;this.oldx=x;this.oldy=y;this.pinned=pinned;}
@@ -70,92 +80,69 @@ function satisfy(){for(const c of constraints){const a=c.a,b=c.b;let dx=b.x-a.x,
 
 function step(){for(let k=0;k<substeps;k++){for(const p of points)p.apply();for(let j=0;j<6;j++)satisfy();}}
 
-function draw(){ctx.clearRect(0,0,W,H);ctx.save();ctx.globalAlpha=0.05;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.strokeStyle='#fff';ctx.stroke();}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}ctx.restore();
-ctx.lineWidth=3;ctx.strokeStyle='#8ee7b7';for(const c of constraints){ctx.beginPath();ctx.moveTo(c.a.x,c.a.y);ctx.lineTo(c.b.x,c.b.y);ctx.stroke();}
-ctx.fillStyle='#8ee7b7';for(const r of ragdolls){const head=r.points[0];ctx.beginPath();ctx.arc(head.x,head.y,8,0,Math.PI*2);ctx.fill();}
-ctx.strokeStyle='#7ad9ff';for(const b of boxes){ctx.beginPath();ctx.moveTo(b[0].x,b[0].y);for(let i=1;i<b.length;i++)ctx.lineTo(b[i].x,b[i].y);ctx.closePath();ctx.stroke();}
-for(const bm of bombs){if(bm.state==='armed'){ctx.beginPath();ctx.fillStyle='rgba(255,100,60,0.95)';ctx.arc(bm.x,bm.y,8,0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='rgba(255,180,120,0.7)';ctx.stroke();ctx.beginPath();ctx.fillStyle='rgba(255,220,120,0.9)';ctx.arc(bm.x-6,bm.y-8,2,0,Math.PI*2);ctx.fill();}else if(bm.state==='exploding'){const t=bm.anim,r=bm.explosionRadius*(t/bm.explosionDuration);ctx.beginPath();ctx.lineWidth=2+(1-t/bm.explosionDuration)*6;ctx.strokeStyle=`rgba(255,150,80,${1-t/bm.explosionDuration})`;ctx.arc(bm.x,bm.y,r,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.fillStyle=`rgba(255,220,150,${0.6-t/bm.explosionDuration*0.6})`;ctx.arc(bm.x,bm.y,Math.max(0,8*(1-t/bm.explosionDuration)),0,Math.PI*2);ctx.fill();}}}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();ctx.globalAlpha=0.05;
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.strokeStyle='#fff';ctx.stroke();}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.restore();
+  ctx.lineWidth=3;ctx.strokeStyle='#8ee7b7';
+  for(const c of constraints){ctx.beginPath();ctx.moveTo(c.a.x,c.a.y);ctx.lineTo(c.b.x,c.b.y);ctx.stroke();}
+  ctx.fillStyle='#8ee7b7';
+  for(const r of ragdolls){const head=r.points[0];ctx.beginPath();ctx.arc(head.x,head.y,8,0,Math.PI*2);ctx.fill();}
+  ctx.strokeStyle='#7ad9ff';
+  for(const b of boxes){ctx.beginPath();ctx.moveTo(b[0].x,b[0].y);for(let i=1;i<b.length;i++)ctx.lineTo(b[i].x,b[i].y);ctx.closePath();ctx.stroke();}
+  for(const bm of bombs){
+    if(bm.state==='armed'){
+      ctx.beginPath();ctx.fillStyle='rgba(255,100,60,0.95)';
+      ctx.arc(bm.x,bm.y,8,0,Math.PI*2);ctx.fill();
+      ctx.lineWidth=2;ctx.strokeStyle='rgba(255,180,120,0.7)';ctx.stroke();
+    }else if(bm.state==='exploding'){
+      const t=bm.anim,r=bm.explosionRadius*(t/bm.explosionDuration);
+      ctx.beginPath();ctx.lineWidth=2+(1-t/bm.explosionDuration)*6;
+      ctx.strokeStyle=`rgba(255,150,80,${1-t/bm.explosionDuration})`;
+      ctx.arc(bm.x,bm.y,r,0,Math.PI*2);ctx.stroke();
+    }
+  }
+}
 
+// same ragdoll, box, bomb functions as before
 function createRagdoll(x,y,s=1){const p=[];p.push(new Point(x,y-40*s));p.push(new Point(x,y-24*s));p.push(new Point(x,y-6*s));p.push(new Point(x,y+22*s));p.push(new Point(x-18*s,y-6*s));p.push(new Point(x+18*s,y-6*s));p.push(new Point(x-30*s,y+8*s));p.push(new Point(x+30*s,y+8*s));p.push(new Point(x-36*s,y+28*s));p.push(new Point(x+36*s,y+28*s));p.push(new Point(x-10*s,y+44*s));p.push(new Point(x+10*s,y+44*s));p.push(new Point(x-10*s,y+80*s));p.push(new Point(x+10*s,y+80*s));p.push(new Point(x-10*s,y+110*s));p.push(new Point(x+10*s,y+110*s));
 const start=points.length;for(const q of p)points.push(q);const idx=i=>points[start+i];const make=(a,b,r,stiff)=>constraints.push(new Constraint(idx(a),idx(b),r,stiff));
 make(0,1,16,0.9);make(1,2,18,0.9);make(2,3,30,0.9);make(2,4,22,0.7);make(2,5,22,0.7);make(4,6,22,0.7);make(5,7,22,0.7);make(6,8,26,0.7);make(7,9,26,0.7);make(3,10,22,0.8);make(3,11,22,0.8);make(10,12,36,0.8);make(12,14,36,0.8);make(11,13,36,0.8);make(13,15,36,0.8);
 ragdolls.push({points:p,timeFalling:0,standing:false});}
 
 function createBox(x,y,size=40){const h=size/2;const p=[new Point(x-h,y-h),new Point(x+h,y-h),new Point(x+h,y+h),new Point(x-h,y+h)];const start=points.length;for(const q of p)points.push(q);const idx=i=>points[start+i];const make=(a,b)=>constraints.push(new Constraint(idx(a),idx(b),size,1));make(0,1);make(1,2);make(2,3);make(3,0);constraints.push(new Constraint(idx(0),idx(2),Math.hypot(size,size),1));constraints.push(new Constraint(idx(1),idx(3),Math.hypot(size,size),1));boxes.push(p);}
-
 function createBomb(x,y){bombs.push({x:x,y:y,state:'armed',anim:0,explosionDuration:18,explosionRadius:120});}
 function detonateBombIndex(i){const bm=bombs[i];if(!bm||bm.state!=='armed')return;bm.state='exploding';bm.anim=0;applyExplosionImpulse(bm.x,bm.y,bm.explosionRadius,28);}
 function detonateAllBombs(){for(let i=0;i<bombs.length;i++){if(bombs[i].state==='armed')detonateBombIndex(i);}}
-function applyExplosionImpulse(cx,cy,blastRadius,blastPower){for(const p of points){const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy);if(d<=blastRadius&&d>0.0001){const normX=dx/d,normY=dy/d,falloff=1-(d/blastRadius),force=blastPower*falloff;p.oldx-=normX*force;p.oldy-=normY*force;p.x+=normX*Math.min(6,force*0.3);p.y+=normY*Math.min(6,force*0.3);}}for(const c of constraints){const ax=c.a.x,ay=c.a.y,bx=c.b.x,by=c.b.y,dax=(ax+bx)/2-cx,day=(ay+by)/2-cy,dd=Math.hypot(dax,day);if(dd<blastRadius*0.6){c.stiff*=0.6;c.rest*=1+0.12*(1-dd/(blastRadius*0.6));}}}
+function applyExplosionImpulse(cx,cy,blastRadius,blastPower){for(const p of points){const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy);if(d<=blastRadius&&d>0.0001){const normX=dx/d,normY=dy/d,falloff=1-(d/blastRadius),force=blastPower*falloff;p.oldx-=normX*force;p.oldy-=normY*force;p.x+=normX*Math.min(6,force*0.3);p.y+=normY*Math.min(6,force*0.3);}}}
 
-function standRagdoll(r){
-  const s=1;
-  const p=r.points;
-  const baseY = H - 120;
-
-  // Feet anchors
-  const feetFriction = 0.85;
-  p[12].oldx = p[12].x + (p[12].oldx - p[12].x) * feetFriction;
-  p[12].oldy = p[12].y + (p[12].oldy - p[12].y) * feetFriction;
-  p[13].oldx = p[13].x + (p[13].oldx - p[13].x) * feetFriction;
-  p[13].oldy = p[13].y + (p[13].oldy - p[13].y) * feetFriction;
-
-  // Legs: pelvis->knees->feet
-  const legTargets = [
-    [p[3].x, baseY - 22*s],
-    [p[10].x, baseY + 40*s],
-    [p[11].x, baseY + 40*s],
-    [p[12].x, baseY + 80*s],
-    [p[13].x, baseY + 80*s]
-  ];
-  const legSpeeds = [0.05,0.035,0.035,0.02,0.02];
-  for(let i=0;i<legTargets.length;i++){
-    p[3+i].x += (legTargets[i][0]-p[3+i].x)*legSpeeds[i];
-    p[3+i].y += (legTargets[i][1]-p[3+i].y)*legSpeeds[i];
-  }
-
-  // Torso & head alignment
-  const torsoTargets = [
-    [p[0].x, legTargets[0][1]-62*s],
-    [p[1].x, legTargets[0][1]-38*s],
-    [p[2].x, legTargets[0][1]-12*s]
-  ];
-  const torsoSpeeds = [0.04,0.035,0.03];
-  for(let i=0;i<torsoTargets.length;i++){
-    p[i].x += (torsoTargets[i][0]-p[i].x)*torsoSpeeds[i];
-    p[i].y += (torsoTargets[i][1]-p[i].y)*torsoSpeeds[i];
-  }
-
-  // Arms slight adjustment for balance
-  p[4].x += (p[4].x - p[4].x)*0.02;
-  p[4].y += (p[2].y + 6*s - p[4].y)*0.02;
-  p[5].x += (p[5].x - p[5].x)*0.02;
-  p[5].y += (p[2].y + 6*s - p[5].y)*0.02;
-  p[6].y += (p[3].y + 8*s - p[6].y)*0.02;
-  p[7].y += (p[3].y + 8*s - p[7].y)*0.02;
-
-  // Stop standing if legs are roughly straight
-  if(Math.abs(p[3].y-(baseY-22*s))<0.5) r.standing=false;
-}
-
+// touch + mouse compatibility
 let mouse={x:0,y:0,grab:null};
-canvas.addEventListener('mousedown',e=>{const r=canvas.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;
+function handleDown(x,y){mouse.x=x;mouse.y=y;
 for(let i=0;i<bombs.length;i++){const bm=bombs[i],d=Math.hypot(bm.x-mouse.x,bm.y-mouse.y);if(d<14&&bm.state==='armed'){detonateBombIndex(i);return;}}
-let best=null,bd=24;for(const p of points){const d=Math.hypot(p.x-mouse.x,p.y-mouse.y);if(d<bd){best=p;bd=d;}}if(best){mouse.grab=best;}else{if(spawnMode==='ragdoll'){createRagdoll(mouse.x,mouse.y,1);}else if(spawnMode==='box'){createBox(mouse.x,mouse.y,40);}else if(spawnMode==='bomb'){createBomb(mouse.x,mouse.y);}}});
-addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;if(mouse.grab){mouse.grab.x=mouse.x;mouse.grab.y=mouse.y;mouse.grab.oldx=mouse.x;mouse.grab.oldy=mouse.y;}});
-addEventListener('mouseup',()=>{mouse.grab=null;});
+let best=null,bd=24;for(const p of points){const d=Math.hypot(p.x-mouse.x,p.y-mouse.y);if(d<bd){best=p;bd=d;}}if(best){mouse.grab=best;}else{if(spawnMode==='ragdoll')createRagdoll(x,y,1);else if(spawnMode==='box')createBox(x,y,40);else if(spawnMode==='bomb')createBomb(x,y);}}
+function handleMove(x,y){mouse.x=x;mouse.y=y;if(mouse.grab){mouse.grab.x=x;mouse.grab.y=y;mouse.grab.oldx=x;mouse.grab.oldy=y;}}
+function handleUp(){mouse.grab=null;}
+
+canvas.addEventListener('mousedown',e=>{const r=canvas.getBoundingClientRect();handleDown(e.clientX-r.left,e.clientY-r.top);});
+addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();handleMove(e.clientX-r.left,e.clientY-r.top);});
+addEventListener('mouseup',handleUp);
+
+canvas.addEventListener('touchstart',e=>{const t=e.touches[0],r=canvas.getBoundingClientRect();handleDown(t.clientX-r.left,t.clientY-r.top);e.preventDefault();});
+canvas.addEventListener('touchmove',e=>{const t=e.touches[0],r=canvas.getBoundingClientRect();handleMove(t.clientX-r.left,t.clientY-r.top);e.preventDefault();});
+canvas.addEventListener('touchend',handleUp);
 
 document.getElementById('spawnR').addEventListener('click',()=>{spawnMode='ragdoll';updateHelp();});
 document.getElementById('spawnBox').addEventListener('click',()=>{spawnMode='box';updateHelp();});
 document.getElementById('spawnBomb').addEventListener('click',()=>{spawnMode='bomb';updateHelp();});
-document.getElementById('detonateBombs').addEventListener('click',()=>detonateAllBombs());
+document.getElementById('detonateBombs').addEventListener('click',detonateAllBombs);
 document.getElementById('clear').addEventListener('click',()=>{points.length=0;constraints.length=0;ragdolls.length=0;boxes.length=0;bombs.length=0;});
 document.getElementById('grav').addEventListener('input',e=>gravity=parseFloat(e.target.value));
 document.getElementById('substeps').addEventListener('change',e=>substeps=parseInt(e.target.value));
 document.getElementById('slow').addEventListener('click',()=>{slow=!slow;document.getElementById('slow').textContent=slow?'Normal':'Slow Motion';});
 document.getElementById('pause').addEventListener('click',()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Resume':'Pause';});
-
-addEventListener('keydown', (e)=>{if(e.key==='1'){spawnMode='ragdoll';updateHelp();}else if(e.key==='2'){spawnMode='box';updateHelp();}else if(e.key==='3'){spawnMode='bomb';updateHelp();}});
 
 createRagdoll(W/2,80,1.2);
 
@@ -166,7 +153,6 @@ function loop(now){
     let speed=slow?0.35:1;
     for(let i=0;i<Math.max(1,Math.floor(dt*60*speed));i++)step();
     for(let i=bombs.length-1;i>=0;i--){const bm=bombs[i];if(bm.state==='exploding'){bm.anim++;if(bm.anim>bm.explosionDuration+6)bombs.splice(i,1);}}
-    for(const r of ragdolls){const pelvis=r.points[3];if(pelvis.y>=H-15){r.timeFalling+=dt;}else{r.timeFalling=0;}if(r.timeFalling>1.5&&!r.standing){r.standing=true;}if(r.standing)standRagdoll(r);}
   }
   draw();
   requestAnimationFrame(loop);
